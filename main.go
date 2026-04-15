@@ -10,16 +10,19 @@ import (
 )
 
 func main() {
-    app := pocketbase.New()
+	if err := loadEnvFile(".env"); err != nil && !os.IsNotExist(err) {
+		log.Printf("skip .env loading: %v", err)
+	}
 
-    app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-        // serves static files from the provided public dir (if exists)
-        se.Router.GET("/{path...}", apis.Static(os.DirFS("./pb_public"), false))
+	app := pocketbase.New()
+	registerPushHooks(app)
 
-        return se.Next()
-    })
+	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		se.Router.GET("/{path...}", apis.Static(os.DirFS("./pb_public"), false))
+		return se.Next()
+	})
 
-    if err := app.Start(); err != nil {
-        log.Fatal(err)
-    }
+	if err := app.Start(); err != nil {
+		log.Fatal(err)
+	}
 }

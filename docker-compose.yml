@@ -1,8 +1,15 @@
-custom-pocketbase:
-   image: .
-   container_name: custom-pocketbase
-   ports:
-      - "8090:8090"
-   volumes:
-      - ./data:/pb_data
-      - ./data:/pb_hooks
+services:
+   custom-pocketbase:
+      build:
+         context: .
+         dockerfile: Dockerfile
+      container_name: custom-pocketbase
+      env_file:
+         - .env
+      ports:
+         - "8090:8090"
+      volumes:
+         - ./pb_data:/app/pb_data
+         - ./pb_public:/app/pb_public
+         - ./secrets:/app/secrets:ro
+      restart: unless-stopped
