@@ -12,6 +12,10 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nano && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /out/custom-pocketbase /app/custom-pocketbase
 
 RUN mkdir -p /app/pb_data /app/pb_public /app/secrets

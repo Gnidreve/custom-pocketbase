@@ -25,8 +25,7 @@ type fcmClient struct {
 type fcmMessage struct {
 	Message struct {
 		Token        string            `json:"token"`
-		Notification map[string]string `json:"notification"`
-		Data         map[string]string `json:"data"`
+		Notification map[string]string `json:"notification,omitempty"`
 	} `json:"message"`
 }
 
@@ -122,7 +121,7 @@ func normalizePrivateKey(privateKey string) string {
 	return privateKey
 }
 
-func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string, data map[string]string) (string, error) {
+func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string) (string, error) {
 	if strings.TrimSpace(deviceToken) == "" {
 		return "", fmt.Errorf("missing device token")
 	}
@@ -133,7 +132,6 @@ func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string, d
 		"title": title,
 		"body":  body,
 	}
-	msg.Message.Data = data
 
 	jsonBody, err := json.Marshal(msg)
 	if err != nil {
