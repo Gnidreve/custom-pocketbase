@@ -1,0 +1,8 @@
+custom-pocketbase:
+   image: .
+   container_name: custom-pocketbase
+   ports:
+      - "8090:8090"
+   volumes:
+      - ./data:/pb_data
+      - ./data:/pb_hooks
