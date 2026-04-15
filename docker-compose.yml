@@ -1,0 +1,18 @@
+services:
+  pocketbase:
+    image: custom-pocketbase:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SERVICE_URL_POCKETBASE_8080
+    env_file:
+      - .env
+    volumes:
+      - pocketbase-data:/app/pb_data
+      - pocketbase-public:/app/pb_public
+    restart: unless-stopped
+
+volumes:
+  pocketbase-data:
+  pocketbase-public:

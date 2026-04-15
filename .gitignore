@@ -1,0 +1,7 @@
+pb_data
+.codex
+.env
+custom-pocketbase
+pocketbase-push
+dist/
+secrets/*.json
