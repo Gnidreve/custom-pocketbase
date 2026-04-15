@@ -16,7 +16,7 @@ RUN apk add --no-cache ca-certificates tzdata nano curl
 
 COPY --from=builder /out/custom-pocketbase /app/custom-pocketbase
 
-RUN mkdir -p /app/pb_data /app/pb_public /app/pb_hooks
+RUN mkdir -p /app/pb_data /app/pb_public /app/pb_hooks /app/secrets
 
 EXPOSE 8080
 
