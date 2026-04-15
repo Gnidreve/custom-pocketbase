@@ -20,4 +20,4 @@ RUN mkdir -p /app/pb_data /app/pb_public /app/pb_hooks /app/secrets
 
 EXPOSE 8080
 
-ENTRYPOINT ["/app/custom-pocketbase", "serve", "--http=0.0.0.0:8080", "--dir=/app/pb_data"]
+ENTRYPOINT ["/app/custom-pocketbase", "serve", "--http=0.0.0.0:8080", "--dir=/app/pb_data", "--dev"]
