@@ -35,6 +35,8 @@ func main() {
 	})
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		registerInquiryRoutes(se)
+
 		if !se.Router.HasRoute(http.MethodGet, "/{path...}") {
 			se.Router.GET("/{path...}", apis.Static(os.DirFS("./pb_public"), false))
 		}
