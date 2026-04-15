@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -49,13 +50,7 @@ func (s *pushService) SendToAllSuperusers(ctx context.Context, title, body strin
 		return fmt.Errorf("push body must not be empty")
 	}
 
-	s.app.Logger().Info(
-		"push dispatch requested",
-		"title", title,
-		"body", body,
-		"projectId", s.client.ProjectID(),
-		"fcmURL", s.client.SendURL(),
-	)
+	log.Printf("[push] dispatch requested: title=%q projectId=%s", title, s.client.ProjectID())
 
 	recipients, err := s.app.FindRecordsByFilter(
 		"_superusers",
@@ -69,11 +64,11 @@ func (s *pushService) SendToAllSuperusers(ctx context.Context, title, body strin
 	}
 
 	if len(recipients) == 0 {
-		s.app.Logger().Warn("push skipped because no superusers with device_token were found")
+		log.Printf("[push] skipped: no superusers with device_token found")
 		return nil
 	}
 
-	s.app.Logger().Info("sending push to superusers", "count", len(recipients), "title", title)
+	log.Printf("[push] sending to %d superuser(s)", len(recipients))
 
 	var failed int
 
@@ -84,20 +79,13 @@ func (s *pushService) SendToAllSuperusers(ctx context.Context, title, body strin
 
 		if err := s.sendWithRetry(ctx, recipient, title, body); err != nil {
 			failed++
-			s.app.Logger().Error(
-				"push delivery failed",
-				"recipientId", recipient.Id,
-				"deviceTokenSuffix", tokenSuffix(recipient.GetString("device_token")),
-				"err", err,
-			)
+			log.Printf("[push] delivery failed: recipientId=%s tokenSuffix=%s err=%v",
+				recipient.Id, tokenSuffix(recipient.GetString("device_token")), err)
 			continue
 		}
 
-		s.app.Logger().Info(
-			"push delivered",
-			"recipientId", recipient.Id,
-			"deviceTokenSuffix", tokenSuffix(recipient.GetString("device_token")),
-		)
+		log.Printf("[push] delivered: recipientId=%s tokenSuffix=%s",
+			recipient.Id, tokenSuffix(recipient.GetString("device_token")))
 	}
 
 	if failed > 0 {
@@ -164,16 +152,16 @@ func registerPushBindings(vm *goja.Runtime, push *pushService) {
 	pushObject := vm.NewObject()
 
 	if err := pushObject.Set("send", func(title string, body string) {
-		push.app.Logger().Info("push.send invoked from JS hook", "title", title)
+		log.Printf("[push] send called: title=%q", title)
 
 		push.wg.Add(1)
 		go func() {
 			defer push.wg.Done()
 			if err := push.SendToAllSuperusers(context.Background(), title, body); err != nil {
-				push.app.Logger().Error("push.send failed", "err", err)
+				log.Printf("[push] send failed: %v", err)
 				return
 			}
-			push.app.Logger().Info("push.send completed successfully")
+			log.Printf("[push] send completed successfully")
 		}()
 	}); err != nil {
 		panic(err)
