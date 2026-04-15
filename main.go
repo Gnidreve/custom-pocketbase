@@ -25,9 +25,12 @@ func main() {
 
 	app.Logger().Info("push notifications enabled", "projectId", pushService.client.ProjectID())
 
+	mailSvc := newMailService(app)
+
 	jsvm.MustRegister(app, jsvm.Config{
 		OnInit: func(vm *goja.Runtime) {
 			registerPushBindings(vm, pushService)
+			registerMailBindings(vm, mailSvc)
 		},
 	})
 
@@ -40,6 +43,7 @@ func main() {
 
 	app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
 		pushService.Shutdown()
+		mailSvc.Shutdown()
 		return te.Next()
 	})
 

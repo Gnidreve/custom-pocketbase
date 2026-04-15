@@ -1,22 +1,16 @@
 # custom-pocketbase
 
-Erweiterung von PocketBase mit Firebase Cloud Messaging (FCM) Push-Notifications, die direkt aus JS-Hooks heraus aufgerufen werden können.
-
-## Voraussetzungen
-
-- Ein Firebase-Projekt mit aktiviertem Cloud Messaging
-- Ein Service-Account mit der Rolle **Firebase Cloud Messaging API Admin**
-- Mindestens ein Superuser mit gesetztem `device_token`-Feld in der `_superusers`-Collection
+Erweiterung von PocketBase mit FCM Push-Notifications und Mail-Versand direkt aus JS-Hooks.
 
 ## Konfiguration
 
-Umgebungsvariablen in `.env` (oder direkt im Container):
+**Firebase (Push)** — Umgebungsvariablen in `.env` oder Container:
 
 ```env
-# Option A – kompletter Service-Account als JSON (empfohlen, Projekt-ID wird aus dem JSON gelesen)
+# Option A – kompletter Service-Account als JSON (empfohlen)
 GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":...}
 
-# Option B – Pfad zu einer JSON-Datei (Projekt-ID wird aus der Datei gelesen)
+# Option B – Pfad zur JSON-Datei
 GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/firebase.json
 
 # Option C – Einzelne Felder
@@ -28,31 +22,17 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 PUSH_TIMEOUT_SECONDS=10
 ```
 
+**Mail** — wird über Admin-UI → Settings → Mail Settings konfiguriert (SMTP). Absender-Name und -Adresse werden automatisch aus den App-Settings gelesen.
+
 ---
 
-## Push-Notifications aus JS-Hooks senden
-
-Das globale Objekt `$push` steht in allen PocketBase JS-Hooks zur Verfügung.
+## JS-API
 
 ### `$push.send(title, body)`
 
-Sendet eine Push-Notification an **alle Superuser**, die ein `device_token`-Feld gesetzt haben.
-
-| Parameter | Typ    | Beschreibung           |
-| --------- | ------ | ---------------------- |
-| `title`   | string | Titel der Notification |
-| `body`    | string | Text der Notification  |
-
-Der Aufruf ist **nicht-blockierend** — die Notification wird im Hintergrund gesendet, der Hook kehrt sofort zurück.
-
----
-
-## Beispiele
-
-### Notification bei neuem Datensatz
+Sendet eine Push-Notification an alle Superuser mit gesetztem `device_token`. Nicht-blockierend.
 
 ```js
-// pb_hooks/inquiries.pb.js
 onRecordAfterCreateSuccess((e) => {
    $push.send(
       "Neue Anfrage",
@@ -61,50 +41,34 @@ onRecordAfterCreateSuccess((e) => {
 }, "inquiries");
 ```
 
-### Notification bei Statusänderung
+### `$mail.send(to, subject, html)`
+
+Sendet eine HTML-E-Mail. Nicht-blockierend (interne Queue, 2 Worker).
 
 ```js
-// pb_hooks/orders.pb.js
-onRecordAfterUpdateSuccess((e) => {
-   const status = e.record.get("status");
-   if (status === "shipped") {
-      $push.send(
-         "Bestellung versandt",
-         `Bestellung #${e.record.get("order_number")} ist unterwegs`,
-      );
-   }
-}, "orders");
-```
-
-### Notification bei neuem Benutzer
-
-```js
-// pb_hooks/users.pb.js
 onRecordAfterCreateSuccess((e) => {
-   $push.send(
-      "Neuer Benutzer",
-      `${e.record.get("email")} hat sich registriert`,
+   $mail.send(
+      e.record.get("email"),
+      "Neue Anfrage eingegangen",
+      `<p>Hallo, deine Anfrage wurde empfangen.</p>`,
    );
-}, "users");
+}, "inquiries");
 ```
 
 ---
 
-## Verhalten bei Fehlern
+## Fehlerverhalten (Push)
 
-- **Ungültiger/abgemeldeter Token** (`NOT_FOUND`, `UNREGISTERED`): Der Token wird automatisch aus der Datenbank gelöscht. Beim nächsten Login des Nutzers muss das Frontend den Token neu setzen.
-- **Transiente Fehler** (Netzwerk, FCM 5xx): Es werden bis zu 3 Versuche mit exponentiellem Backoff unternommen (1s, dann 2s Pause).
-- **Kein Superuser mit Token**: Die Notification wird still übersprungen.
+- **Ungültiger Token** (`NOT_FOUND`, `UNREGISTERED`): Token wird automatisch aus der DB gelöscht.
+- **Transiente Fehler**: Bis zu 3 Versuche mit exponentiellem Backoff (1s, 2s).
+- **Kein Superuser mit Token**: Notification wird still übersprungen.
 
 ## Device-Token setzen
 
-Das Frontend muss nach dem FCM-Token-Request das Feld `device_token` beim eingeloggten Superuser aktualisieren:
-
 ```js
-// Beispiel (PocketBase JS SDK)
 await pb.collection("_superusers").update(pb.authStore.record.id, {
    device_token: fcmToken,
 });
 ```
 
-Das Feld `device_token` muss in der `_superusers`-Collection als Text-Feld angelegt sein.
+Das Feld `device_token` muss in `_superusers` als Text-Feld angelegt sein.
