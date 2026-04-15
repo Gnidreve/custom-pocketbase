@@ -35,13 +35,17 @@ func handleNewInquiry(e *core.RequestEvent) error {
 	phone := strings.TrimSpace(firstNonEmpty(payload.Phone, payload.Telefon))
 	message := strings.TrimSpace(payload.Message)
 
-	if err := validation.ValidateStruct(payload,
-		validation.Field(&name, validation.Required, validation.Length(1, 255)),
-		validation.Field(&email, validation.Required, validation.Length(1, 255), is.EmailFormat),
-		validation.Field(&phone, validation.Length(0, 255)),
-		validation.Field(&message, validation.Required, validation.Length(1, 10000)),
-	); err != nil {
-		return e.BadRequestError("An error occurred while validating the submitted data.", err)
+	if err := validation.Validate(name, validation.Required, validation.Length(1, 255)); err != nil {
+		return e.BadRequestError("An error occurred while validating the submitted data.", map[string]any{"name": err})
+	}
+	if err := validation.Validate(email, validation.Required, validation.Length(1, 255), is.EmailFormat); err != nil {
+		return e.BadRequestError("An error occurred while validating the submitted data.", map[string]any{"email": err})
+	}
+	if err := validation.Validate(phone, validation.Length(0, 255)); err != nil {
+		return e.BadRequestError("An error occurred while validating the submitted data.", map[string]any{"phone": err})
+	}
+	if err := validation.Validate(message, validation.Required, validation.Length(1, 10000)); err != nil {
+		return e.BadRequestError("An error occurred while validating the submitted data.", map[string]any{"message": err})
 	}
 
 	inquiriesCollection, err := e.App.FindCollectionByNameOrId("inquiries")
