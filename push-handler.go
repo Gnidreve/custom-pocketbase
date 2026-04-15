@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -16,6 +18,7 @@ import (
 
 const firebaseMessagingScope = "https://www.googleapis.com/auth/firebase.messaging"
 const defaultGoogleTokenURL = "https://oauth2.googleapis.com/token"
+const defaultFCMTimeout = 10 * time.Second
 
 type fcmClient struct {
 	httpClient *http.Client
@@ -44,8 +47,11 @@ func newPushClientFromEnv() (*fcmClient, error) {
 		return nil, err
 	}
 
+	httpClient := oauth2.NewClient(ctx, credentials.TokenSource)
+	httpClient.Timeout = loadPushTimeout()
+
 	return &fcmClient{
-		httpClient: oauth2.NewClient(ctx, credentials.TokenSource),
+		httpClient: httpClient,
 		projectID:  projectID,
 	}, nil
 }
@@ -126,6 +132,20 @@ func normalizePrivateKey(privateKey string) string {
 	privateKey = strings.Trim(privateKey, "`")
 	privateKey = strings.ReplaceAll(privateKey, `\n`, "\n")
 	return privateKey
+}
+
+func loadPushTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("PUSH_TIMEOUT_SECONDS"))
+	if raw == "" {
+		return defaultFCMTimeout
+	}
+
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds <= 0 {
+		return defaultFCMTimeout
+	}
+
+	return time.Duration(seconds) * time.Second
 }
 
 func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string) (string, error) {

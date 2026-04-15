@@ -103,15 +103,17 @@ func (s *pushService) SendToAllSuperusers(ctx context.Context, title, body strin
 func registerPushBindings(vm *goja.Runtime, push *pushService) {
 	pushObject := vm.NewObject()
 
-	if err := pushObject.Set("send", func(title string, body string) error {
+	if err := pushObject.Set("send", func(title string, body string) {
 		push.app.Logger().Info("push.send invoked from JS hook", "title", title)
-		if err := push.SendToAllSuperusers(context.Background(), title, body); err != nil {
-			push.app.Logger().Error("push.send failed", "err", err)
-			return err
-		}
 
-		push.app.Logger().Info("push.send completed successfully")
-		return nil
+		go func() {
+			if err := push.SendToAllSuperusers(context.Background(), title, body); err != nil {
+				push.app.Logger().Error("push.send failed", "err", err)
+				return
+			}
+
+			push.app.Logger().Info("push.send completed successfully")
+		}()
 	}); err != nil {
 		panic(err)
 	}
