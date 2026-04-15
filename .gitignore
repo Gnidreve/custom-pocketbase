@@ -1,8 +1,0 @@
-pb_data
-.codex
-.env
-.gitignore
-custom-pocketbase
-pocketbase-push
-dist/
-secrets/*.json
