@@ -38,6 +38,11 @@ func main() {
 		return se.Next()
 	})
 
+	app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
+		pushService.Shutdown()
+		return te.Next()
+	})
+
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
 	}

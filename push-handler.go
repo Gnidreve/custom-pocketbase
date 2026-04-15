@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -23,16 +24,30 @@ const defaultFCMTimeout = 10 * time.Second
 type fcmClient struct {
 	httpClient *http.Client
 	projectID  string
+	log        *slog.Logger
+}
+
+type fcmNotification struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
 }
 
 type fcmMessage struct {
 	Message struct {
-		Token        string            `json:"token"`
-		Notification map[string]string `json:"notification,omitempty"`
+		Token        string           `json:"token"`
+		Notification *fcmNotification `json:"notification,omitempty"`
 	} `json:"message"`
 }
 
-func newPushClientFromEnv() (*fcmClient, error) {
+type fcmErrorResponse struct {
+	Error struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Status  string `json:"status"`
+	} `json:"error"`
+}
+
+func newFCMClient(log *slog.Logger) (*fcmClient, error) {
 	ctx := context.Background()
 	projectID := strings.TrimSpace(os.Getenv("GOOGLE_PROJECT_ID"))
 	if projectID == "" {
@@ -53,6 +68,7 @@ func newPushClientFromEnv() (*fcmClient, error) {
 	return &fcmClient{
 		httpClient: httpClient,
 		projectID:  projectID,
+		log:        log,
 	}, nil
 }
 
@@ -148,47 +164,77 @@ func loadPushTimeout() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string) (string, error) {
+// Send delivers a push notification to a single device token.
+// Returns (responseText, tokenInvalid, error).
+// tokenInvalid is true when FCM reports the token is expired or unregistered —
+// the caller should clear the token from the database to avoid future attempts.
+func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string) (string, bool, error) {
 	if strings.TrimSpace(deviceToken) == "" {
-		return "", fmt.Errorf("missing device token")
+		return "", false, fmt.Errorf("missing device token")
 	}
 
 	msg := fcmMessage{}
 	msg.Message.Token = deviceToken
-	msg.Message.Notification = map[string]string{
-		"title": title,
-		"body":  body,
+	msg.Message.Notification = &fcmNotification{
+		Title: title,
+		Body:  body,
 	}
 
 	jsonBody, err := json.Marshal(msg)
 	if err != nil {
-		return "", fmt.Errorf("marshal fcm payload: %w", err)
+		return "", false, fmt.Errorf("marshal fcm payload: %w", err)
 	}
 
 	url := c.SendURL()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return "", fmt.Errorf("create fcm request: %w", err)
+		return "", false, fmt.Errorf("create fcm request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	fmt.Printf("FCM request: project=%s tokenSuffix=%s url=%s payload=%s\n", c.projectID, tokenSuffix(deviceToken), url, string(jsonBody))
+	c.log.Debug("FCM request", "project", c.projectID, "tokenSuffix", tokenSuffix(deviceToken), "url", url)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("send fcm request: %w", err)
+		return "", false, fmt.Errorf("send fcm request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	responseBody, _ := io.ReadAll(resp.Body)
-	responseText := strings.TrimSpace(string(responseBody))
+	respBytes, _ := io.ReadAll(resp.Body)
+	responseText := strings.TrimSpace(string(respBytes))
 
-	fmt.Printf("FCM response: project=%s tokenSuffix=%s status=%s body=%s\n", c.projectID, tokenSuffix(deviceToken), resp.Status, responseText)
+	c.log.Debug("FCM response", "project", c.projectID, "tokenSuffix", tokenSuffix(deviceToken), "status", resp.Status, "body", responseText)
 
 	if resp.StatusCode >= 300 {
-		return responseText, fmt.Errorf("fcm error: %s: %s", resp.Status, responseText)
+		tokenInvalid := isFCMTokenInvalid(resp.StatusCode, respBytes)
+		return responseText, tokenInvalid, fmt.Errorf("fcm error %s: %s", resp.Status, responseText)
 	}
 
-	return responseText, nil
+	return responseText, false, nil
+}
+
+// isFCMTokenInvalid returns true when the FCM error response indicates the
+// device token is permanently invalid and should be removed from the database.
+func isFCMTokenInvalid(statusCode int, body []byte) bool {
+	// Token errors always come back as 4xx; 5xx are transient server errors.
+	if statusCode < 400 || statusCode >= 500 {
+		return false
+	}
+
+	var fcmErr fcmErrorResponse
+	if err := json.Unmarshal(body, &fcmErr); err != nil {
+		return false
+	}
+
+	switch fcmErr.Error.Status {
+	case "NOT_FOUND", "UNREGISTERED":
+		return true
+	case "INVALID_ARGUMENT":
+		// Only flag as invalid when the message explicitly mentions the token.
+		msg := strings.ToLower(fcmErr.Error.Message)
+		return strings.Contains(msg, "token") || strings.Contains(msg, "registration")
+	}
+
+	return false
 }
