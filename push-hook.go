@@ -2,6 +2,8 @@ package main
 
 import "github.com/pocketbase/pocketbase/core"
 
+const inquiriesCollectionName = "inquiries"
+
 func registerPushHooks(app core.App) {
 	pushClient, err := newPushClientFromEnv()
 	if err != nil {
@@ -11,12 +13,26 @@ func registerPushHooks(app core.App) {
 
 	app.Logger().Info("push notifications enabled", "projectId", pushClient.ProjectID())
 
-	app.OnRecordAfterCreateSuccess("inquiries").BindFunc(func(e *core.RecordEvent) error {
+	app.OnRecordAfterCreateSuccess().BindFunc(func(e *core.RecordEvent) error {
+		collectionName := e.Record.Collection().Name
+		collectionID := e.Record.Collection().Id
+
 		app.Logger().Info(
-			"inquiry create hook triggered",
+			"record create hook triggered",
 			"recordId", e.Record.Id,
-			"collection", e.Record.Collection().Name,
+			"collection", collectionName,
+			"collectionId", collectionID,
 		)
+
+		if collectionName != inquiriesCollectionName {
+			app.Logger().Info(
+				"skipping push for non-target collection",
+				"targetCollection", inquiriesCollectionName,
+				"collection", collectionName,
+				"collectionId", collectionID,
+			)
+			return e.Next()
+		}
 
 		recipients, err := e.App.FindRecordsByFilter(
 			"_superusers",

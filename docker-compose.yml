@@ -10,5 +10,6 @@ services:
          - .env
       volumes:
          - pocketbase-data:/app/pb_data
+         - "pocketbase-hooks:/app/pb_hooks"
          - pocketbase-public:/app/pb_public
       restart: unless-stopped
