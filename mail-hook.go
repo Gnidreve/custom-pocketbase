@@ -39,20 +39,40 @@ func (s *mailService) worker() {
 }
 
 func (s *mailService) deliver(job mailJob) {
+	from := s.app.Settings().Meta.SenderAddress
 	msg := &mailer.Message{
 		From: mail.Address{
-			Address: s.app.Settings().Meta.SenderAddress,
+			Address: from,
 			Name:    s.app.Settings().Meta.SenderName,
 		},
 		To:      []mail.Address{{Address: job.to}},
 		Subject: job.subject,
 		HTML:    job.html,
 	}
-	if err := s.app.NewMailClient().Send(msg); err != nil {
-		log.Printf("[mail] send failed: to=%s err=%v", job.to, err)
+	sendErr := s.app.NewMailClient().Send(msg)
+	if sendErr != nil {
+		log.Printf("[mail] send failed: to=%s err=%v", job.to, sendErr)
+	} else {
+		log.Printf("[mail] sent: to=%s subject=%q", job.to, job.subject)
+	}
+	s.logEmail(from, job, sendErr == nil)
+}
+
+func (s *mailService) logEmail(from string, job mailJob, success bool) {
+	collection, err := s.app.FindCollectionByNameOrId("emails")
+	if err != nil {
+		log.Printf("[mail] db log failed: collection not found: %v", err)
 		return
 	}
-	log.Printf("[mail] sent: to=%s subject=%q", job.to, job.subject)
+	record := core.NewRecord(collection)
+	record.Set("from", from)
+	record.Set("to", job.to)
+	record.Set("subject", job.subject)
+	record.Set("body", job.html)
+	record.Set("is_send", success)
+	if err := s.app.Save(record); err != nil {
+		log.Printf("[mail] db log failed: %v", err)
+	}
 }
 
 func (s *mailService) Shutdown() {

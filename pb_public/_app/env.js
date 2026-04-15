@@ -1,0 +1,1 @@
+export const env={"PUBLIC_SUPABASE_URL":"https://sb.foreverding.de","PUBLIC_SUPABASE_PUBLISHABLE_KEY":"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc2Mjk1ODI4MCwiZXhwIjo0OTE4NjMxODgwLCJyb2xlIjoiYW5vbiJ9.kk-sDHqrUrvEua3UwtqyMm-JZFEQxxCdPimurOPgJwo"}
