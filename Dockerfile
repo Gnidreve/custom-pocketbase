@@ -18,7 +18,7 @@ RUN apt-get update && \
 
 COPY --from=builder /out/custom-pocketbase /app/custom-pocketbase
 
-RUN mkdir -p /app/pb_data /app/pb_public /app/secrets
+RUN mkdir -p /app/pb_data /app/pb_public
 
 EXPOSE 8090
 

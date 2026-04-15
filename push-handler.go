@@ -54,6 +54,13 @@ func (c *fcmClient) ProjectID() string {
 	return c.projectID
 }
 
+func (c *fcmClient) SendURL() string {
+	return fmt.Sprintf(
+		"https://fcm.googleapis.com/v1/projects/%s/messages:send",
+		c.projectID,
+	)
+}
+
 func loadGoogleCredentials(ctx context.Context) (*google.Credentials, error) {
 	rawJSON := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
 	if rawJSON != "" {
@@ -138,16 +145,15 @@ func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string) (
 		return "", fmt.Errorf("marshal fcm payload: %w", err)
 	}
 
-	url := fmt.Sprintf(
-		"https://fcm.googleapis.com/v1/projects/%s/messages:send",
-		c.projectID,
-	)
+	url := c.SendURL()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("create fcm request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	fmt.Printf("FCM request: project=%s tokenSuffix=%s url=%s payload=%s\n", c.projectID, tokenSuffix(deviceToken), url, string(jsonBody))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -157,6 +163,8 @@ func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string) (
 
 	responseBody, _ := io.ReadAll(resp.Body)
 	responseText := strings.TrimSpace(string(responseBody))
+
+	fmt.Printf("FCM response: project=%s tokenSuffix=%s status=%s body=%s\n", c.projectID, tokenSuffix(deviceToken), resp.Status, responseText)
 
 	if resp.StatusCode >= 300 {
 		return responseText, fmt.Errorf("fcm error: %s: %s", resp.Status, responseText)

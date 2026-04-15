@@ -1,7 +1,8 @@
 pb_data
+pb_hooks
 .codex
 .env
 custom-pocketbase
 pocketbase-push
-dist/
-secrets/*.json
+
+

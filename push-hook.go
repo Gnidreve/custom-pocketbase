@@ -38,6 +38,14 @@ func (s *pushService) SendToAllSuperusers(ctx context.Context, title, body strin
 		return fmt.Errorf("push body must not be empty")
 	}
 
+	s.app.Logger().Info(
+		"push dispatch requested",
+		"title", title,
+		"body", body,
+		"projectId", s.client.ProjectID(),
+		"fcmURL", s.client.SendURL(),
+	)
+
 	recipients, err := s.app.FindRecordsByFilter(
 		"_superusers",
 		"device_token != ''",
@@ -95,10 +103,15 @@ func (s *pushService) SendToAllSuperusers(ctx context.Context, title, body strin
 func registerPushBindings(vm *goja.Runtime, push *pushService) {
 	pushObject := vm.NewObject()
 
-	if err := pushObject.Set("send", func(title string, body string) {
+	if err := pushObject.Set("send", func(title string, body string) error {
+		push.app.Logger().Info("push.send invoked from JS hook", "title", title)
 		if err := push.SendToAllSuperusers(context.Background(), title, body); err != nil {
 			push.app.Logger().Error("push.send failed", "err", err)
+			return err
 		}
+
+		push.app.Logger().Info("push.send completed successfully")
+		return nil
 	}); err != nil {
 		panic(err)
 	}
