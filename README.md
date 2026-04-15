@@ -13,16 +13,14 @@ Erweiterung von PocketBase mit Firebase Cloud Messaging (FCM) Push-Notifications
 Umgebungsvariablen in `.env` (oder direkt im Container):
 
 ```env
-# Projekt-ID aus der Firebase-Konsole
-GOOGLE_PROJECT_ID=mein-firebase-projekt
-
-# Option A – kompletter Service-Account als JSON (empfohlen)
+# Option A – kompletter Service-Account als JSON (empfohlen, Projekt-ID wird aus dem JSON gelesen)
 GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":...}
 
-# Option B – Pfad zu einer JSON-Datei
-GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/firebase.json
+# Option B – Pfad zu einer JSON-Datei (Projekt-ID wird aus der Datei gelesen)
+GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/firebase.json
 
 # Option C – Einzelne Felder
+GOOGLE_PROJECT_ID=mein-firebase-projekt
 GOOGLE_CLIENT_EMAIL=firebase-adminsdk@mein-projekt.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 

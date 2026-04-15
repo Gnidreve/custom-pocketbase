@@ -49,17 +49,21 @@ type fcmErrorResponse struct {
 
 func newFCMClient(log *slog.Logger) (*fcmClient, error) {
 	ctx := context.Background()
+
+	credentials, err := loadGoogleCredentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	projectID := strings.TrimSpace(os.Getenv("GOOGLE_PROJECT_ID"))
 	if projectID == "" {
 		projectID = strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID"))
 	}
 	if projectID == "" {
-		return nil, fmt.Errorf("missing GOOGLE_PROJECT_ID or FIREBASE_PROJECT_ID")
+		projectID = credentials.ProjectID
 	}
-
-	credentials, err := loadGoogleCredentials(ctx)
-	if err != nil {
-		return nil, err
+	if projectID == "" {
+		return nil, fmt.Errorf("project ID not found: set GOOGLE_PROJECT_ID or include it in the service account JSON")
 	}
 
 	httpClient := oauth2.NewClient(ctx, credentials.TokenSource)
