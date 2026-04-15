@@ -9,7 +9,15 @@ func registerPushHooks(app core.App) {
 		return
 	}
 
+	app.Logger().Info("push notifications enabled", "projectId", pushClient.ProjectID())
+
 	app.OnRecordAfterCreateSuccess("inquiries").BindFunc(func(e *core.RecordEvent) error {
+		app.Logger().Info(
+			"inquiry create hook triggered",
+			"recordId", e.Record.Id,
+			"collection", e.Record.Collection().Name,
+		)
+
 		recipients, err := e.App.FindRecordsByFilter(
 			"_superusers",
 			"device_token != ''",
@@ -18,12 +26,16 @@ func registerPushHooks(app core.App) {
 			0,
 		)
 		if err != nil {
+			app.Logger().Error("failed to load push recipients", "err", err)
 			return err
 		}
 
 		if len(recipients) == 0 {
+			app.Logger().Warn("no push recipients found")
 			return nil
 		}
+
+		app.Logger().Info("push recipients loaded", "count", len(recipients))
 
 		inquiry := e.Record
 		title := "Neue Anfrage im CRM"
@@ -39,19 +51,38 @@ func registerPushHooks(app core.App) {
 		for _, recipient := range recipients {
 			deviceToken := recipient.GetString("device_token")
 			if deviceToken == "" {
+				app.Logger().Warn("recipient has empty device token", "recipientId", recipient.Id)
 				continue
 			}
 
-			if err := pushClient.Send(e.Context, deviceToken, title, body, data); err != nil {
+			responseBody, err := pushClient.Send(e.Context, deviceToken, title, body, data)
+			if err != nil {
 				app.Logger().Error(
 					"push delivery failed",
 					"recipientId", recipient.Id,
-					"deviceToken", deviceToken,
+					"deviceTokenSuffix", tokenSuffix(deviceToken),
+					"response", responseBody,
 					"err", err,
 				)
+				continue
 			}
+
+			app.Logger().Info(
+				"push delivered",
+				"recipientId", recipient.Id,
+				"deviceTokenSuffix", tokenSuffix(deviceToken),
+				"response", responseBody,
+			)
 		}
 
 		return nil
 	})
+}
+
+func tokenSuffix(token string) string {
+	if len(token) <= 8 {
+		return token
+	}
+
+	return token[len(token)-8:]
 }

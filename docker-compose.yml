@@ -1,15 +1,18 @@
 services:
-   custom-pocketbase:
-      build:
-         context: .
-         dockerfile: Dockerfile
-      container_name: custom-pocketbase
-      env_file:
-         - .env
-      ports:
-         - "8090:8090"
-      volumes:
-         - ./pb_data:/app/pb_data
-         - ./pb_public:/app/pb_public
-         - ./secrets:/app/secrets:ro
-      restart: unless-stopped
+  pocketbase:
+    image: custom-pocketbase:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SERVICE_URL_POCKETBASE_8080
+    env_file:
+      - .env
+    volumes:
+      - pocketbase-data:/app/pb_data
+      - pocketbase-public:/app/pb_public
+    restart: unless-stopped
+
+volumes:
+  pocketbase-data:
+  pocketbase-public:

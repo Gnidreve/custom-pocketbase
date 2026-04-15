@@ -51,6 +51,10 @@ func newPushClientFromEnv() (*fcmClient, error) {
 	}, nil
 }
 
+func (c *fcmClient) ProjectID() string {
+	return c.projectID
+}
+
 func loadGoogleCredentials(ctx context.Context) (*google.Credentials, error) {
 	rawJSON := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
 	if rawJSON != "" {
@@ -118,9 +122,9 @@ func normalizePrivateKey(privateKey string) string {
 	return privateKey
 }
 
-func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string, data map[string]string) error {
+func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string, data map[string]string) (string, error) {
 	if strings.TrimSpace(deviceToken) == "" {
-		return fmt.Errorf("missing device token")
+		return "", fmt.Errorf("missing device token")
 	}
 
 	msg := fcmMessage{}
@@ -133,7 +137,7 @@ func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string, d
 
 	jsonBody, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("marshal fcm payload: %w", err)
+		return "", fmt.Errorf("marshal fcm payload: %w", err)
 	}
 
 	url := fmt.Sprintf(
@@ -143,21 +147,22 @@ func (c *fcmClient) Send(ctx context.Context, deviceToken, title, body string, d
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return fmt.Errorf("create fcm request: %w", err)
+		return "", fmt.Errorf("create fcm request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send fcm request: %w", err)
+		return "", fmt.Errorf("send fcm request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	responseBody, _ := io.ReadAll(resp.Body)
+	responseText := strings.TrimSpace(string(responseBody))
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("fcm error: %s: %s", resp.Status, strings.TrimSpace(string(responseBody)))
+		return responseText, fmt.Errorf("fcm error: %s: %s", resp.Status, responseText)
 	}
 
-	return nil
+	return responseText, nil
 }
